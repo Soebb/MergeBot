@@ -6,9 +6,9 @@ from typing import Union
 from functions import *
 import os
 
-API_ID = os.environ.get("API_ID", None)
-API_HASH = os.environ.get("API_HASH", None)
-TOKEN = os.environ.get("TOKEN", None)
+API_ID: int = int(os.environ.get("API_ID", None))
+API_HASH: str = os.environ.get("API_HASH", None)
+TOKEN: str = os.environ.get("TOKEN", None)
 
 bot = TelegramClient('bot', API_ID, API_HASH).start(
     bot_token=TOKEN)
@@ -93,7 +93,7 @@ async def handler(event):
         await conv.cancel_all()
 
     mime_type = event.data.decode('utf-8')
-    dirpath = f'{chat_id}\{mime_type.replace("/", "-")}'
+    dirpath = f'{chat_id}/{mime_type.replace("/", "-")}'
 
     for message_id in users_list[chat_id][mime_type]:
         message = await bot.get_messages(chat_id, limit=1, ids=message_id)
@@ -109,18 +109,18 @@ async def handler(event):
         name_file_final += '.txt'
         merge_txt(dirpath, name_file_final)
 
-    file = f'{chat_id}\{name_file_final}'
+    file = f'{chat_id}/{name_file_final}'
     await bot.send_file(chat_id, file=file,
                         progress_callback=partial(
                             progress_handler, event, name_file_final, "Subiendo"))
     os.remove(file)
     await event.edit("Subido")
-    users_list[chat_id][mime_type]=[]
+    users_list[chat_id][mime_type] = []
 
 
 async def download_file(message: Message, event: Message, dirpath: str):
     filename = message.media.document.attributes[0].file_name
-    filepath = f'{dirpath}\{filename}'
+    filepath = f'{dirpath}/{filename}'
     try:
         file = await message.download_media(file=filepath,
                                             progress_callback=partial(

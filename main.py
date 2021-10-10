@@ -16,13 +16,13 @@ bot = TelegramClient('bot', API_ID, API_HASH).start(
 permited_users = {}
 users_list = {}
 mimetypes = ('application/pdf', 'text/plain')
+empty_list = "Aún ningún archivo para combinar."
 
 
 @bot.on(events.NewMessage(pattern='/get'))
 async def get_users(event):
     chat_id = event.message.chat.id
     permited_users = {x.id: x.username for x in await bot.get_participants(chat_id, aggressive=True) if not x.bot}
-    print(permited_users)
     with open('permitidos.json', 'w') as jsonfile:
         json.dump(permited_users, jsonfile, indent=4)
     await bot.send_message(chat_id, json.dumps(permited_users, indent=4))
@@ -41,25 +41,28 @@ async def get_files(event):
     message = event.message
     chat_id = message.chat.id
     mime_type = message.media.document.mime_type
-    print(event)
-    if chat_id in users_list.keys():
-        if mime_type not in users_list[chat_id].keys():
+    print("file_add")
+    if chat_id in users_list:
+        if mime_type not in users_list[chat_id]:
             users_list[chat_id][mime_type] = []
+
         users_list[chat_id][mime_type].append(message.id)
     else:
         users_list[chat_id] = {}
         users_list[chat_id][mime_type] = [message.id]
+
     print(users_list)
+
+def is_empty(chat_id:str):
+    return chat_id not in users_list or not users_list[chat_id] or not bool([x for x in users_list[chat_id].values() if x])
 
 
 @bot.on(events.NewMessage(pattern='/list'))
 async def get_list(event):
     chat_id = event.message.chat.id
 
-    if chat_id not in users_list:
-        text_to_send = "Aún ningún archivo para combinar."
-    elif not users_list[chat_id]:
-        text_to_send = "Lista vacia."
+    if is_empty(chat_id):
+        text_to_send = empty_list
     else:
         text_to_send = "Lista de archivos a combinar por tipo:\n"
         for mime_type in users_list[chat_id]:
@@ -67,7 +70,7 @@ async def get_list(event):
             for message_id in users_list[chat_id][mime_type]:
                 message = await bot.get_messages(chat_id, limit=1, ids=message_id)
                 text_to_send += f'{message.media.document.attributes[0].file_name}\n'
-
+        print(users_list[chat_id])
     await event.reply(text_to_send)
 
 
@@ -79,7 +82,11 @@ async def clear_list(event):
 
 @bot.on(events.NewMessage(pattern='/merge'))
 async def merge(event):
-    buttons = [Button.inline(x) for x in users_list[event.message.chat.id].keys()]
+    if is_empty(event.message.chat.id):
+        await event.reply(empty_list)
+        return
+
+    buttons = [Button.inline(x) for x in users_list[event.message.chat.id]]
     await event.reply('Elija el tipo de archivo a combinar:', buttons=buttons)
 
 
@@ -102,11 +109,11 @@ async def handler(event):
     await event.edit("Descargas finalizadas, procediendo a unir")
 
     if mime_type == 'application/pdf':
-        name_file_final += '.pdf'
+        name_file_final = (name_file_final if name_file_final.endswith('.pdf') else name_file_final+'.pdf')
         merge_pdf(dirpath, name_file_final)
 
     elif mime_type == 'text/plain':
-        name_file_final += '.txt'
+        name_file_final = (name_file_final if name_file_final.endswith('.txt') else name_file_final+'.txt')
         merge_txt(dirpath, name_file_final)
 
     file = f'{chat_id}/{name_file_final}'
